@@ -42,6 +42,10 @@ def prefsPage() {
          createAccessToken()
 
     dynamicPage(name: "prefsPage", title: "Config", install:true, uninstall:true) {
+    	section("When off, nothing is controlled.  Useful when traveling with your laptops, or otherwise away from home:") {
+            input "masterEnable",        "bool",                   title:"Master Enable",           required:true
+        }
+
         section("Wake when any of these switches turn on, detect motion or open:") {
             input "onSwitches",        "capability.switch",        title:"\"On\" Switches",         multiple:true,  required:false
             input "onMotionSensors",   "capability.motionSensor",  title:"\"On\" Motion Sensors",   multiple:true,  required:false
@@ -60,8 +64,10 @@ def prefsPage() {
 
         section("Computers to wake and sleep.  The address of each must be in the form of ip:port, such as 192.168.1.50:8080.  Each computer must be running a compatible daemon:") {
             input "computer1",        "text",                      title:"First Computer",          required:false
-            input "computer2",        "text",                      title:"Secnd Computer",          required:false
+            input "computer2",        "text",                      title:"Second Computer",         required:false
             input "computer3",        "text",                      title:"Third Computer",          required:false
+            input "computer4",        "text",                      title:"Fourth Computer",         required:false
+            input "computer5",        "text",                      title:"Fifth Computer",          required:false
         }
 
         section( "View this SmartApp's configuration to use it in other places:" ) {
@@ -112,12 +118,22 @@ def initialize() {
 //  module or sleeping the display ourselves), it won't automatically wake back up
 //  as we're leaving the room.
 def deviceOnHandler(event) {
+	if( !masterEnable ) {
+    	log.debug "Ignoring deviceOnHandler(); master enable false"
+    	return
+    }
+
 	log.debug "\"On\" event received"
 	doWake( true );
 }
 
 def motionOnHandler(event) {
 	// Make sure we didn't go to sleep in the last 60 seconds
+	if( !masterEnable ) {
+    	log.debug "Ignoring motionOnHandler(); master enable false"
+    	return
+    }
+
 	if( (state.lastWakeTime + (60 * 1000)) > now() ) {
 		log.debug "Motion \"On\" event received too soon after \"off\" events; ignoring"
     	return;
@@ -128,6 +144,11 @@ def motionOnHandler(event) {
 }
 
 def deviceOffHandler(event) {
+	if( !masterEnable ) {
+    	log.debug "Ignoring deviceOffHandler(); master enable false"
+    	return
+    }
+
     log.debug "\"Off\" event received"
 
 	// Store when the "off" time for use with motion sensors
@@ -139,6 +160,11 @@ def deviceOffHandler(event) {
 // This toggles the state of the doSwitches to the value passed in.
 //  It also tells the computers to wake up.
 def doWake( boolean wake ) {
+	if( !masterEnable ) {
+    	log.debug "Ignoring doWake(); master enable false"
+    	return
+    }
+
 	log.debug "doWake() called with: $wake"
 
 	// Turn on/off the switches
@@ -149,7 +175,7 @@ def doWake( boolean wake ) {
 
 	// Wake/sleep the computers
     def command = wake ? "wake" : "sleep"
-	[ computer1, computer2, computer3 ].each { ipAndPort ->
+	[ computer1, computer2, computer3, computer4, computer5 ].each { ipAndPort ->
 		if( ipAndPort ) {
         	// Basic code from https://community.smartthings.com/t/lan-device-hubaction-post-w-json-using-rest-call/5665/3
 			// HTTP JSON headers
@@ -159,7 +185,7 @@ def doWake( boolean wake ) {
 
 			log.debug "Sending command $command to $ipAndPort"
 
-			// Body just contains the command to issue
+			// Body just contains the command to issue as JSON
             def jsonData = [ command: command ]
             def json     = new groovy.json.JsonOutput().toJson(jsonData)
 
@@ -191,6 +217,11 @@ mappings {
 }
 
 def setSwitchesTo() {
+	if( !masterEnable ) {
+    	log.debug "Ignoring setSwitchesTo(); master enable false"
+    	return
+    }
+
 	def command = params.command
 
 	if( command == "wake" ) {
